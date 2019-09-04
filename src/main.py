@@ -1,16 +1,20 @@
 import argparse
 import torch
 import torch.nn as nn
-import torch.nn.functional as f
 import torch.optim as optim
-from model import Model
+from .model import Model
 import numpy as np
-import time
+import os
+from tqdm import tqdm
+from src import dataload, encode
+import sys
 
+vocab_to_int, int_to_vocab = encode.make_dict()
+MODEL_PATH = 'model'
 
 def main(args):
     model = Model(args.ntokens, args.emsize, args.nclasses, args.sen_len)
-    loss_fn = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss()
     optimizer = None
     if args.optimizer == 'sgd':
         optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.wdecay)
@@ -21,16 +25,75 @@ def main(args):
         model = model_load(model, args.resume)
 
     # Dataset
+    train_loader = dataload.get_loader('train.txt')
+    dev_loader = dataload.get_loader('dev.txt')
+    test_loader = dataload.get_loader('test.txt')
+
     # Train
+    train(model, train_loader, dev_loader, optimizer=optimizer, criterion=criterion, args=args)
     # Eval
 
 
-def train(model, data, optimizer, loss_fn, args):
-    total_loss = 0
-    start_time = time.time()
-    hidden = model.init_hidden(args.batch_size)
+def train(model, train_loader, dev_loader, optimizer, criterion, args):
+    recent_loss = sys.float_info.max
 
-    #Train
+    counter = 0
+    clip = 5
+
+    if args.device is 'cuda':
+        model.cuda()
+
+    model.train()
+
+    for e in tqdm(args.epochs):
+        h = model.init_hidden(args.batch_size)
+
+        for inputs, labels in train_loader:
+            counter += 1
+
+            if args.devide is 'cuda':
+                inputs, labels = inputs.cuda(), labels.cuda()
+
+            h = tuple([each.data for each in h])
+
+            model.zero_grad()
+
+            inputs = inputs.type(torch.IntTensor)
+            output, h = model(inputs, h)
+
+            loss = criterion(output.squeeze(), labels.float())
+            loss.backward()
+
+            nn.utils.clip_grad_norm_(model.parameters(), clip)
+            optimizer.step()
+
+            if counter % args.log_interval == 0:
+                val_h = model.init_hidden(args.batch_size)
+                val_losses = []
+                model.eval()
+                for inputs, labels in dev_loader:
+                    val_h = tuple([each.data for each in val_h])
+
+                    if args.devide is 'cuda':
+                        inputs, labels = inputs.cuda(), labels.cuda()
+
+                    inputs = inputs.type(torch.IntTensor)
+                    output, val_h = model(inputs, val_h)
+                    val_loss = criterion(output.squeeze(), labels.float())
+
+                    val_losses.append(val_loss.item())
+
+                current_loss = loss.item()
+
+                model.train()
+                print("Epoch: {}/{}...".format(e + 1, args.epochs),
+                      "Counter: {}...".format(counter),
+                      "Loss: {:.6f}...".format(current_loss),
+                      "Val Loss: {:.6f}".format(np.mean(val_losses)))
+
+                if current_loss <= recent_loss:
+                    model_save(model, os.path.join(MODEL_PATH, 'model_epoch{}_counter{}.pth'.format(e, counter)))
+
 
 
 def evaluate(model, data, optimizer, loss_fn, args):
