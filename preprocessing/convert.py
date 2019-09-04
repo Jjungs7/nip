@@ -3,6 +3,13 @@ from tqdm import tqdm
 from string import punctuation
 
 SAVE_PATH = '../data/converted'
+try:
+    os.mkdir(SAVE_PATH)
+except FileExistsError:
+    print("data/converted folder already exists. Continue?(y/n)")
+    cont = input()
+    if cont == "n" or cont == "N":
+        exit(0)
 
 
 def read_file(path, name):
@@ -51,7 +58,7 @@ def convert_file(path, name):
             f.write(text + '\t' + str(label) + '\n')
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     convert_file('../data', 'train.txt')
     convert_file('../data', 'test.txt')
     convert_file('../data', 'dev.txt')

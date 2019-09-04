@@ -8,6 +8,13 @@ tokenizer = CoreNLPParser()
 SAVE_PATH = '../data'
 CONV_PATH = '../data/converted'
 ENCO_PATH = '../data/encoded'
+try:
+    os.mkdir(ENCO_PATH)
+except FileExistsError:
+    print("data/encoded folder already exists. Continue?(y/n)")
+    cont = input()
+    if cont == "n" or cont == "N":
+        exit(0)
 
 train_name = 'train.txt'
 dev_name = 'dev.txt'
