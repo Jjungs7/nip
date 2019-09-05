@@ -1,7 +1,7 @@
 import torch.nn as nn
 
 class Model(nn.Module):
-    def __init__(self, inp_dim, emb_dim, output_dim, max_sen_len):
+    def __init__(self, inp_dim, emb_dim, hidden_dim, nlayers):
         super(Model, self).__init__()
         self.emb = nn.Embedding(inp_dim, emb_dim)
         self.lstm1 = nn.LSTM(emb_dim, emb_dim)
@@ -10,9 +10,12 @@ class Model(nn.Module):
         self.lstm2 = nn.LSTM(emb_dim, emb_dim)
         self.avg2 = nn.AvgPool1d(emb_dim)
         self.fc1 = nn.Linear(emb_dim, emb_dim)
-        self.fc2 = nn.Linear(emb_dim, output_dim)
+        self.fc2 = nn.Linear(emb_dim, inp_dim)
 
-        self.max_sen_len = max_sen_len
+		self.ninp = inp_dim
+		self.nhid = hidden_dim
+		self.nlayers = nlayers
+		self.tie_weights = True
 
     def forward(self, inp, hidden):
         inp = self.emb(inp)

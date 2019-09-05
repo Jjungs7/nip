@@ -2,11 +2,11 @@ import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from .model import Model
+from model import Model
 import numpy as np
 import os
 from tqdm import tqdm
-from src import dataload, encode
+import dataload, encode
 import sys
 
 vocab_to_int, int_to_vocab = encode.make_dict()
@@ -45,7 +45,7 @@ def train(model, train_loader, dev_loader, optimizer, criterion, args):
 
     model.train()
 
-    for e in tqdm(args.epochs):
+    for e in tqdm(range(args.epochs)):
         h = model.init_hidden(args.batch_size)
 
         for inputs, labels in train_loader:
