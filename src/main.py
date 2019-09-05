@@ -9,11 +9,11 @@ from tqdm import tqdm
 import dataload, encode
 import sys
 
-vocab_to_int, int_to_vocab = encode.make_dict()
+#vocab_to_int, int_to_vocab = encode.make_dict()
 MODEL_PATH = 'model'
 
 def main(args):
-    model = Model(args.ntokens, args.emsize, args.nclasses, args.sen_len)
+    model = Model(args.ntokens, args.emsize, args.nhid, args.nlayers, args.nclasses, args.sen_len)
     criterion = nn.CrossEntropyLoss()
     optimizer = None
     if args.optimizer == 'sgd':
@@ -25,9 +25,9 @@ def main(args):
         model = model_load(model, args.resume)
 
     # Dataset
-    train_loader = dataload.get_loader('train.txt')
-    dev_loader = dataload.get_loader('dev.txt')
-    test_loader = dataload.get_loader('test.txt')
+    train_loader = dataload.get_loader('train-dummy.txt')
+    dev_loader = dataload.get_loader('dev-dummy.txt')
+    test_loader = dataload.get_loader('test-dummy.txt')
 
     # Train
     train(model, train_loader, dev_loader, optimizer=optimizer, criterion=criterion, args=args)
@@ -45,20 +45,20 @@ def train(model, train_loader, dev_loader, optimizer, criterion, args):
 
     model.train()
 
-    for e in tqdm(args.epochs):
+    for e in tqdm(range(args.epochs)):
         h = model.init_hidden(args.batch_size)
 
         for inputs, labels in train_loader:
             counter += 1
 
-            if args.devide is 'cuda':
+            if args.device is 'cuda':
                 inputs, labels = inputs.cuda(), labels.cuda()
 
-            h = tuple([each.data for each in h])
+            h = tuple([each for each in h])
 
             model.zero_grad()
 
-            inputs = inputs.type(torch.IntTensor)
+            inputs = inputs.type(torch.cuda.LongTensor)
             output, h = model(inputs, h)
 
             loss = criterion(output.squeeze(), labels.float())
@@ -72,12 +72,12 @@ def train(model, train_loader, dev_loader, optimizer, criterion, args):
                 val_losses = []
                 model.eval()
                 for inputs, labels in dev_loader:
-                    val_h = tuple([each.data for each in val_h])
+                    val_h = tuple([each for each in val_h])
 
-                    if args.devide is 'cuda':
+                    if args.device is 'cuda':
                         inputs, labels = inputs.cuda(), labels.cuda()
 
-                    inputs = inputs.type(torch.IntTensor)
+                    inputs = inputs.type(torch.LongTensor)
                     output, val_h = model(inputs, val_h)
                     val_loss = criterion(output.squeeze(), labels.float())
 
@@ -112,7 +112,7 @@ def evaluate(model, test_loader, optimizer, criterion, args):
 
     # Evaluate
     for inputs, labels in tqdm(test_loader):
-        if args.devide is 'cuda':
+        if args.device is 'cuda':
             inputs, labels = inputs.cuda(), labels.cuda()
 
         inputs = inputs.type(torch.IntTensor)
@@ -158,6 +158,7 @@ def get_args():
     parser.add_argument('--emsize', type=int, default=400, help='size of word embeddings')
     parser.add_argument('--ntokens', type=int, default=195158, help='number of tokens')
     parser.add_argument('--nlayers', type=int, default=3, help='number of layers')
+    parser.add_argument('--nhid', type=int, default=3, help='number of hidden dimension')
     parser.add_argument('--nclasses', type=int, default=5, help='number of classes')
     parser.add_argument('--sen_len', type=int, default=600, help='maximum seq length')
     parser.add_argument('--lr', type=float, default=0.1, help='initial learning rate')

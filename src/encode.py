@@ -8,13 +8,6 @@ tokenizer = CoreNLPParser()
 SAVE_PATH = '../data'
 CONV_PATH = '../data/converted'
 ENCO_PATH = '../data/encoded'
-try:
-    os.mkdir(ENCO_PATH)
-except FileExistsError:
-    print("data/encoded folder already exists. Continue?(y/n)")
-    cont = input()
-    if cont == "n" or cont == "N":
-        exit(0)
 
 train_name = 'train.txt'
 dev_name = 'dev.txt'
@@ -64,6 +57,14 @@ def encode_score_list(score_list):
 
 
 if __name__=="__main__":
+    try:
+        os.mkdir(ENCO_PATH)
+    except FileExistsError:
+        print("data/encoded folder already exists. Continue?(y/n)")
+        cont = input()
+        if cont == "n" or cont == "N":
+            exit(0)
+
     train_review_list, train_score_list = split_review_score(train_name)
     dev_review_list, dev_score_list = split_review_score(dev_name)
     test_review_list, test_score_list = split_review_score(test_name)

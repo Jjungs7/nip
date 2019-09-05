@@ -8,10 +8,6 @@ import numpy as np
 ENCO_PATH = '../data/encoded'
 DATA_PATH = '../data'
 
-train_name = 'train.txt'
-dev_name = 'dev.txt'
-test_name = 'test.txt'
-
 seq_len = 600
 batch_size = 32
 

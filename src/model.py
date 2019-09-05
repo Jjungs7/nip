@@ -1,21 +1,22 @@
 import torch.nn as nn
 
 class Model(nn.Module):
-    def __init__(self, inp_dim, emb_dim, hidden_dim, nlayers):
+    def __init__(self, inp_dim, emb_dim, hidden_dim, nlayers, output_dim, sen_len):
         super(Model, self).__init__()
         self.emb = nn.Embedding(inp_dim, emb_dim)
-        self.lstm1 = nn.LSTM(emb_dim, emb_dim)
-        self.avg1 = nn.AvgPool1d(emb_dim)
+        self.lstm1 = nn.LSTM(emb_dim, hidden_dim)
+        self.avg1 = nn.AvgPool1d(3, padding=3)
         # Sentence sort layer
-        self.lstm2 = nn.LSTM(emb_dim, emb_dim)
-        self.avg2 = nn.AvgPool1d(emb_dim)
-        self.fc1 = nn.Linear(emb_dim, emb_dim)
-        self.fc2 = nn.Linear(emb_dim, inp_dim)
-
-		self.ninp = inp_dim
-		self.nhid = hidden_dim
-		self.nlayers = nlayers
-		self.tie_weights = True
+        self.lstm2 = nn.LSTM(hidden_dim, hidden_dim)
+        self.avg1 = nn.AvgPool1d(3, padding=3)
+        self.fc1 = nn.Linear(hidden_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, output_dim)
+        
+        self.ninp = inp_dim
+        self.nhid = hidden_dim
+        self.nlayers = nlayers
+        self.tie_weights = True
+        self.max_sen_len = sen_len
 
     def forward(self, inp, hidden):
         inp = self.emb(inp)
@@ -24,7 +25,7 @@ class Model(nn.Module):
 
         # Sentence sort
         [sen_len, emb_len] = inp.shape
-        inp = inp.reshape((sen_len / self.max_sen_len, self.max_sen_len, emb_len))
+        inp = inp.reshape((sen_len / self.max_sen_len, self.max_sen_len, emb_len))	
         inp = inp.permute((1, 0, 2))
 
         inp, hidden = self.lstm2(inp, hidden)
