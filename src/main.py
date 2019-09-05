@@ -38,14 +38,14 @@ def train(model, train_loader, dev_loader, optimizer, criterion, args):
     recent_loss = sys.float_info.max
 
     counter = 0
-    clip = 5
+    clip = args.clip
 
     if args.device is 'cuda':
         model.cuda()
 
     model.train()
 
-    for e in tqdm(range(args.epochs)):
+    for e in tqdm(args.epochs):
         h = model.init_hidden(args.batch_size)
 
         for inputs, labels in train_loader:
@@ -95,13 +95,52 @@ def train(model, train_loader, dev_loader, optimizer, criterion, args):
                     model_save(model, os.path.join(MODEL_PATH, 'model_epoch{}_counter{}.pth'.format(e, counter)))
 
 
+def evaluate(model, test_loader, optimizer, criterion, args):
+    total = 0
+    correct = 0
 
-def evaluate(model, data, optimizer, loss_fn, args):
-    total_loss = 0
+    TP = 0
+    FP = 0
+    FN = 0
+
+    if args.device is 'cuda':
+        model.cuda()
+
     model.eval()
-    hidden = model.init_hidden(args.batch_size)
+
+    h = model.init_hidden(args.batch_size)
 
     # Evaluate
+    for inputs, labels in tqdm(test_loader):
+        if args.devide is 'cuda':
+            inputs, labels = inputs.cuda(), labels.cuda()
+
+        inputs = inputs.type(torch.IntTensor)
+        output, h = model(inputs, h)
+
+        _, predicted = torch.max(output, 1)
+        total += labels.size(0)
+
+        for i in range(labels.size(0)):
+            if predicted[i] == 1:
+                if labels[i] == 1:
+                    TP += 1
+                else:
+                    FP += 1
+            else:
+                if labels[i] == 1:
+                    FN += 1
+
+            if predicted[i] == labels[i]:
+                correct += 1
+
+    print(f"Accuracy: {100*correct/total}")
+
+    recall = TP / (TP+FN)
+    precision = TP / (TP+FP)
+
+    print(f"f1 score: {2*(recall * precision)/(recall + precision)}")
+
 
 
 def model_save(model, fname):
@@ -111,32 +150,24 @@ def model_save(model, fname):
 
 def model_load(model, fname):
     model.load_state_dict(torch.load(fname))
-    model.eval()
     return model
 
 
 def get_args():
     parser = argparse.ArgumentParser(description='NiP, lstm + aspect based sentiment analysis')
-    parser.add_argument(
-        '--data', type=str, default='penn_treebank_dataset', help='the name of the dataset to load')
-    parser.add_argument(
-        '--model', type=str, default='LSTM', help='type of recurrent net (LSTM, QRNN, GRU)')
     parser.add_argument('--emsize', type=int, default=400, help='size of word embeddings')
-    parser.add_argument('--ntokens', type=int, default=400, help='number of tokens')
-    parser.add_argument('--nhid', type=int, default=1150, help='number of hidden units per layer')
+    parser.add_argument('--ntokens', type=int, default=195158, help='number of tokens')
     parser.add_argument('--nlayers', type=int, default=3, help='number of layers')
-    parser.add_argument('--nclasses', type=int, default=10, help='number of classes')
-    parser.add_argument('--sen_len', type=int, default=10, help='maximum sentence length')
-    parser.add_argument('--lr', type=float, default=30, help='initial learning rate')
-    parser.add_argument('--clip', type=float, default=0.25, help='gradient clipping')
-    parser.add_argument('--epochs', type=int, default=8000, help='upper epoch limit')
-    parser.add_argument('--batch_size', type=int, default=80, metavar='N', help='batch size')
-    parser.add_argument('--seed', type=int, default=1111, help='random seed')
-    parser.add_argument('--nonmono', type=int, default=5, help='random seed')
+    parser.add_argument('--nclasses', type=int, default=5, help='number of classes')
+    parser.add_argument('--sen_len', type=int, default=600, help='maximum seq length')
+    parser.add_argument('--lr', type=float, default=0.1, help='initial learning rate')
+    parser.add_argument('--clip', type=float, default=5, help='gradient clipping')
+    parser.add_argument('--epochs', type=int, default=20, help='upper epoch limit')
+    parser.add_argument('--batch_size', type=int, default=32, metavar='N', help='batch size')
     parser.add_argument('--device', default='cuda', help='device to use(cpu, cuda). Default is cuda')
     parser.add_argument('--log_interval', type=int, default=200, metavar='N', help='report interval')
     parser.add_argument('--resume', type=str, default='', help='path of model to resume')
-    parser.add_argument('--optimizer', type=str, default='sgd', help='optimizer to use (sgd, adam)')
+    parser.add_argument('--optimizer', type=str, default='adam', help='optimizer to use (sgd, adam)')
     parser.add_argument(
         '--wdecay', type=float, default=0, help='weight decay applied to all weights')
     parser.add_argument(
