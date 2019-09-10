@@ -8,6 +8,7 @@ import os
 from tqdm import tqdm
 import dataload, encode
 import sys
+import math
 
 #vocab_to_int, int_to_vocab = encode.make_dict()
 MODEL_PATH = 'model'
@@ -32,7 +33,7 @@ def main(args):
     # Train
     train(model, train_loader, dev_loader, optimizer=optimizer, criterion=criterion, args=args)
     # Eval
-
+    evaluate(model, test_loader, optimizer=optimizer, criterion=criterion, args=args)
 
 def train(model, train_loader, dev_loader, optimizer, criterion, args):
     recent_loss = sys.float_info.max
@@ -98,10 +99,7 @@ def train(model, train_loader, dev_loader, optimizer, criterion, args):
 def evaluate(model, test_loader, optimizer, criterion, args):
     total = 0
     correct = 0
-
-    TP = 0
-    FP = 0
-    FN = 0
+    diff = 0
 
     if args.device is 'cuda':
         model.cuda()
@@ -120,26 +118,17 @@ def evaluate(model, test_loader, optimizer, criterion, args):
 
         _, predicted = torch.max(output, 1)
         total += labels.size(0)
+        correct += (predicted == labels).sum().item()
 
         for i in range(labels.size(0)):
-            if predicted[i] == 1:
-                if labels[i] == 1:
-                    TP += 1
-                else:
-                    FP += 1
-            else:
-                if labels[i] == 1:
-                    FN += 1
-
-            if predicted[i] == labels[i]:
-                correct += 1
+            label = labels[i].item()
+            score = predicted[i].item()
+            diff += abs(label - score) * abs(label - score)
 
     print(f"Accuracy: {100*correct/total}")
 
-    recall = TP / (TP+FN)
-    precision = TP / (TP+FP)
-
-    print(f"f1 score: {2*(recall * precision)/(recall + precision)}")
+    rmse = math.sqrt(diff / total)
+    print(f"RMSE: {rmse}")
 
 
 
