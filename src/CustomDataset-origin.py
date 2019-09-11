@@ -9,6 +9,8 @@ colorlog.basicConfig(
 	format="%(log_color)s[%(levelname)s:%(asctime)s]%(reset)s %(message)s",
 	datefmt="%Y-%m-%d %H:%M:%S"
 )
+
+
 def text_padding(text, length, padding_idx, return_mask=False):
 	""" 
 	text: list of token indices
@@ -23,26 +25,30 @@ def text_padding(text, length, padding_idx, return_mask=False):
 	if return_mask:
 		for i, (l, x) in enumerate(zip(length, text)):
 			padded_sentences[i][:l] = x
-			mask[i][:l]=1
+			mask[i][:l] = 1
 		return padded_sentences, mask
 	else:
 		for i, (l, x) in enumerate(zip(length, text)):
 			padded_sentences[i][:l] = x
 		return padded_sentences
 
+
 class CustomDataset(Dataset):
 	def __init__(self, args,name,data_path):
 		self.args=args
 		self.name=name
 		self.data=self.read_data(data_path=data_path)
+
 		self.len=len(self.data)
 		colorlog.info("Dataset: {}, Size: {}".format(self.name, self.len))
 		colorlog.info("*"*50)
+
 	def __getitem__(self, index): return self.data[index]
 	def __len__(self): return self.len
 	def read_data(self, data_path): pass
 	def custom_collate_fn(self, batch): pass
 	def data_transform(self):pass
+
 
 class TrainDataset(CustomDataset):
 	def __init__(self, args, name, *nargs, **kwargs):
@@ -56,7 +62,7 @@ class TrainDataset(CustomDataset):
 		user = torch.LongTensor(user).to(self.args.device) # N
 		product = torch.LongTensor(product).to(self.args.device) # N
 		rating = torch.LongTensor(rating).to(self.args.device) # N
-		text, mask = text_padding(text, length, padding_idx=self.args._ipad, return_mask=True)
+		text, mask = text_padding(text, length, padding_idx=self.args.ipad, return_mask=True)
 		text = torch.from_numpy(text).to(self.args.device) # N, L
 		length = torch.LongTensor(length).to(self.args.device) # N
 		mask = torch.from_numpy(mask).to(self.args.device) # N, L
