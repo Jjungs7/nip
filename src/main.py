@@ -16,7 +16,7 @@ def get_args():
     parser.add_argument('--emsize', type=int, default=400, help='size of word embeddings')
     parser.add_argument('--ntokens', type=int, default=195158, help='number of tokens')
     parser.add_argument('--nlayers', type=int, default=3, help='number of layers')
-    parser.add_argument('--nhid', type=int, default=3, help='number of hidden dimension')
+    parser.add_argument('--nhid', type=int, default=5, help='number of hidden dimension')
     parser.add_argument('--nclasses', type=int, default=5, help='number of classes')
     parser.add_argument('--sen_len', type=int, default=600, help='maximum seq length')
     parser.add_argument('--lr', type=float, default=0.01, help='initial learning rate')

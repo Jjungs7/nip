@@ -1,7 +1,6 @@
 import numpy as np, torch, torch.nn as nn, torch.nn.functional as F
 from torch.autograd import Variable
 
-
 def masked_softmax(logits, mask, dim=1, epsilon=1e-9):
     """ logits, mask has same size """
     masked_logits = logits.masked_fill(mask == 0, -1e9)
@@ -29,16 +28,17 @@ def masked_average(value, mask, eps=1e-9):
     return S / (N.unsqueeze(dim=dim) + eps)  # ex) N, D
 
 
-class MLPAttentionWithoutQuery:
+class MLPAttentionWithoutQuery(nn.Module):
     def __init__(self, Dv):
         super().__init__()
         self.W = nn.Sequential(
-            nn.Linear(Dv, Dv),
+            nn.Linear(Dv, Dv, bias=False),
             nn.Tanh(),
             nn.Linear(Dv, 1, bias=False)
         )
+
         for p in self.parameters():
-            if p.dim():
+            if p.dim() > 1:
                 nn.init.xavier_normal_(p)
             else:
                 nn.init.constant_(p)
@@ -63,7 +63,7 @@ class MLPAttentionWithoutQuery:
         ).view(*NNs, -1)  # (N1, N2, ..., NN), D
 
 
-class MLPAttentionWithQuery():
+class MLPAttentionWithQuery(nn.Module):
     def __init__(self, Dv, Dq):
         """ ev_t: encoded_vecs, q_t: query
         u_t = tanh(W*(ev_t, q_t)+b)
@@ -92,7 +92,7 @@ class MLPAttentionWithQuery():
         :return: a: (N1, N2, ..., NN), L  ; weights for vectors (0<=ai<=1, sum to 1)
         """
         z = self.W(torch.cat([v, q], dim=-1)).squeeze(dim=-1)  # (N1, N2, ..., NN), L
-        if (mask is None):
+        if mask is None:
             a = F.softmax(z, dim=-1)
         else:
             a = masked_softmax(logits=x, mask=mask, dim=-1)
@@ -187,6 +187,7 @@ class AttributeEmb(nn.Module):
 
 class NSC(nn.Module):
     def __init__(self, args):
+        super().__init__()
         self.args = args
 
         self.WordEmb = nn.Embedding(self.args.ntokens, self.args.emsize)
@@ -201,8 +202,8 @@ class NSC(nn.Module):
         # 	device=self.args.device,
         # 	)
         self.AttentionLayer = MLPAttentionWithoutQuery(
-            encoder_dim=self.args.nhid,
-            device=self.args.device,
+            self.args.nhid,
+            # device=self.args.device,
         )
 
         self.Classifier = nn.Linear(self.args.nhid, 5)

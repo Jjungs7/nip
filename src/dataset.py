@@ -28,11 +28,11 @@ def text_padding(text, length, return_mask=False):
 
 class NIPDataset(Dataset):
     def __init__(self, args, data_path):
-        super().__init__(args, data_path)
-        with open(self.data_path,'r') as f:
+        with open(data_path,'r') as f:
             lines = f.readlines()
 
         self.data = []
+        self.args = args
 
         for i, line in enumerate(tqdm(lines)):
             review = line.split('\t')[0]
