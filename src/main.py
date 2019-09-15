@@ -8,7 +8,10 @@ MODEL_PATH = 'model'
 
 def main(args):
     instr = Instructor(args)
-    instr.train()
+    if not args.test:
+        instr.train()
+    else:
+        instr.test()
 
 
 def get_args():
@@ -29,6 +32,7 @@ def get_args():
     parser.add_argument('--resume', type=str, default='', help='path of model to resume')
     parser.add_argument('--optimizer', type=str, default='adam', help='optimizer to use (sgd, adam)')
     parser.add_argument('--data_path_prefix', type=str, default='../data/encoded/', help='data to use')
+    parser.add_argument('--test', type=bool, default=False, help='determine if this run is test or train')
     parser.add_argument(
         '--wdecay', type=float, default=0, help='weight decay applied to all weights')
     parser.add_argument(
