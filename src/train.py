@@ -21,16 +21,16 @@ class Instructor:
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.args.lr)
         self.criterion = nn.CrossEntropyLoss()
         if not args.test:
-            train_dataset = NIPDataset(args=self.args, data_path=self.args.data_path_prefix + "train.txt")
-            self.train_dataloader = DataLoader(dataset=train_dataset, batch_size=self.args.batch_size, shuffle=True,
-                                          collate_fn=train_dataset.custom_collate_fn)
-            dev_dataset = NIPDataset(args=self.args, data_path=self.args.data_path_prefix + "dev.txt")
-            self.dev_dataloader = DataLoader(dataset=dev_dataset, batch_size=self.args.batch_size, shuffle=False,
-                                             collate_fn=dev_dataset.custom_collate_fn)
+            self.train_dataset = NIPDataset(args=self.args, data_path=self.args.data_path_prefix + "train.txt")
+            self.train_dataloader = DataLoader(dataset=self.train_dataset, batch_size=self.args.batch_size, shuffle=True,
+                                          collate_fn=self.train_dataset.custom_collate_fn)
+            self.dev_dataset = NIPDataset(args=self.args, data_path=self.args.data_path_prefix + "dev.txt")
+            self.dev_dataloader = DataLoader(dataset=self.dev_dataset, batch_size=self.args.batch_size, shuffle=False,
+                                             collate_fn=self.dev_dataset.custom_collate_fn)
         else:
-            test_dataset = NIPDataset(args=self.args, data_path=self.args.data_path_prefix + "test.txt")
-            self.test_dataloader = DataLoader(dataset=test_dataset, batch_size=self.args.batch_size, shuffle=True,
-                                              collate_fn=test_dataset.custom_collate_fn)
+            self.test_dataset = NIPDataset(args=self.args, data_path=self.args.data_path_prefix + "test.txt")
+            self.test_dataloader = DataLoader(dataset=self.test_dataset, batch_size=self.args.batch_size, shuffle=True,
+                                              collate_fn=self.test_dataset.custom_collate_fn)
 
 
     def model_save(self, fname):
@@ -43,10 +43,10 @@ class Instructor:
 
     def train(self):
         recent_loss = sys.float_info.max
-        counter = 1
         self.model.train()
 
         for i_epoch in range(1, self.args.epochs+1):
+            counter = 1
             for i_sample, sample_batch in enumerate(self.train_dataloader):
                 counter += 1
                 (text, length, mask, label) = sample_batch
@@ -58,10 +58,6 @@ class Instructor:
                 loss = self.criterion(pred, label)
                 loss.backward()
                 self.optimizer.step()
-
-                if counter % 500 == 0:
-                    print("Counter: {}/{}...".format(counter, 366038//self.args.batch_size),
-                          "Loss: {}...".format(loss.item()))
 
                 if counter % self.args.log_interval == 0:
                     current_loss = loss.item()
@@ -76,8 +72,6 @@ class Instructor:
                         now = datetime.datetime.today().strftime("%m%d_%H%M")
                         self.model_save(os.path.join(self.args.model_save_path, '{}_epoch{}.pth'.format(now, i_epoch)))
                         recent_loss = min(recent_loss, current_loss)
-            now = datetime.datetime.today().strftime("%m%d_%H%M")
-            self.model_save(os.path.join(self.args.model_save_path, '{}_epoch{}.pth'.format(now, i_epoch)))
 
     def validation(self):
         val_losses = []
@@ -95,20 +89,19 @@ class Instructor:
         return val_losses
 
     def test(self):
-        total = 0
+        self.model.eval()
+        total = len(self.test_dataset)
         correct = 0
         diff = 0
         for i_sample, sample_batch in enumerate(self.test_dataloader):
             (text, length, mask, label) = sample_batch
-            self.model.eval()
 
             if self.args.device is 'cuda':
                 text, length, mask, label = text.cuda(), length.cuda(), mask.cuda(), label.cuda()
 
             pred = self.model(text, length, mask)
-            total += label.size(0)
-            correct += (pred == label).sum().item()
-            diff += (abs(pred-label)*abs(pred-label)).sum().item()
+            correct += (torch.argmax(pred, axis=1) == label).sum().item()
+            diff += (abs(torch.argmax(pred, axis=1)-label)**2).sum().item()
 
         accuracy = correct / total * 100
         print(f"Accuracy: {accuracy:.2f}")

@@ -22,7 +22,7 @@ def get_args():
     parser.add_argument('--nhid', type=int, default=32, help='number of hidden dimension')
     parser.add_argument('--nclasses', type=int, default=5, help='number of classes')
     parser.add_argument('--sen_len', type=int, default=600, help='maximum seq length')
-    parser.add_argument('--lr', type=float, default=0.01, help='initial learning rate')
+    parser.add_argument('--lr', type=float, default=0.0001, help='initial learning rate')
     parser.add_argument('--clip', type=float, default=5, help='gradient clipping')
     parser.add_argument('--epochs', type=int, default=20, help='upper epoch limit')
     parser.add_argument('--model_save_path', type=str, default='../model', help='upper epoch limit')
