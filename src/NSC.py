@@ -52,7 +52,7 @@ class MLPAttentionWithoutQuery(nn.Module):
                 :return: a: (N1, N2, ..., NN), L  ; weights for vectors (0<=ai<=1, sum to 1)
                 """
         z = self.W(v).squeeze(dim=-1)  # (N1, N2, ..., NN), L
-        a = masked_softmax(logits=x, mask=mask, dim=-1)
+        a = masked_softmax(logits=z, mask=mask, dim=-1)
         # a: (N1, N2, ..., NN), L
         NNs, L, D = v.shape[:-2], v.shape[-2], v.shape[-1]
         return torch.bmm(
@@ -218,7 +218,7 @@ class NSC(nn.Module):
         :param: length: N,
         """
         N, L = text.shape
-        x = self.WordEmb(x)  # N, L, Dw
+        x = self.WordEmb(text)  # N, L, Dw
         x = self.BiLSTM(inputs=x, length=length)[0]  # N, L, Dh
 
         # Expand Query Attributes

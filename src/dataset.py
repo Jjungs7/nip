@@ -36,7 +36,7 @@ class NIPDataset(Dataset):
 
         for i, line in enumerate(tqdm(lines)):
             review = line.split('\t')[0]
-            score = int(line.split('\t')[1])
+            score = int(line.split('\t')[1])-1
             review = review.split(' ')
             self.data.append((score, review, len(review)))
 
@@ -44,7 +44,7 @@ class NIPDataset(Dataset):
         rating = []
         text = []
         length = []
-        for i, element in enumerate(self.data):
+        for i, element in enumerate(sample_batch):
             rating.append(element[0])
             text.append(element[1])
             length.append(element[2])

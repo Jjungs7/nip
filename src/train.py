@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import os
 import sys
+import datetime
 
 
 class Instructor:
@@ -13,9 +14,18 @@ class Instructor:
         self.args = args
         self.model = NSC(self.args)
         if args.resume:
-            self.model_load(args.resume)
+            self.model = self.model_load(args.resume)
+        if self.args.device is 'cuda':
+            self.model = self.model.cuda()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.args.lr)
         self.criterion = nn.CrossEntropyLoss()
+        train_dataset = NIPDataset(args=self.args, data_path=self.args.data_path_prefix + "train.txt")
+        self.train_dataloader = DataLoader(dataset=train_dataset, batch_size=self.args.batch_size, shuffle=True,
+                                      collate_fn=train_dataset.custom_collate_fn)
+        dev_dataset = NIPDataset(args=self.args, data_path=self.args.data_path_prefix + "dev.txt")
+        self.dev_dataloader = DataLoader(dataset=dev_dataset, batch_size=self.args.batch_size, shuffle=False,
+                                         collate_fn=dev_dataset.custom_collate_fn)
+
 
     def model_save(self, fname):
         with open(fname, 'wb') as f:
@@ -29,43 +39,43 @@ class Instructor:
         recent_loss = sys.float_info.max
         counter = 1
         self.model.train()
-        train_dataset = NIPDataset(args=self.args, data_path=self.args.data_path_prefix + "train-dummy.txt")
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=self.args.batch_size, shuffle=True,
-                                      collate_fn=train_dataset.custom_collate_fn)
-        for i_epoch in range(1, self.args.epochs):
-            for i_sample, sample_batch in enumerate(train_dataloader):
+
+        for i_epoch in range(1, self.args.epochs+1):
+            for i_sample, sample_batch in enumerate(self.train_dataloader):
                 counter += 1
                 (text, length, mask, label) = sample_batch
                 if self.args.device is 'cuda':
                     text, length, mask, label = text.cuda(), length.cuda(), mask.cuda(), label.cuda()
 
+                self.optimizer.zero_grad()
                 pred = self.model(text, length, mask)  # N, 3
                 loss = self.criterion(pred, label)
-                recent_loss = min(recent_loss, loss.item())
-                current_loss = loss.item()
                 loss.backward()
-                self.optimizer.update()
-                self.model.zero_grad()
-                self.optimizer.zero_grad()
+                self.optimizer.step()
 
-                if counter % self.args.log_interval == 0:
-                    val_losses = self.validation()
-                    self.model.train()
-                    print("Epoch: {}/{}...".format(i_epoch + 1, self.args.max_epochs),
-                          "Counter: {}...".format(counter),
-                          "Loss: {:.6f}...".format(current_loss),
-                          "Val Loss: {:.6f}".format(np.mean(val_losses)))
+                if counter % 500 == 0:
+                    print("Counter: {}/{}...".format(counter, 366038//self.args.batch_size),
+                          "Loss: {}...".format(loss.item()))
 
-                    if current_loss <= recent_loss:
-                        self.model_save(os.path.join(self.args.model_save_path, 'model_epoch{}_counter{}.pth'.format(i_epoch, counter)))
-
+                # if counter % self.args.log_interval == 0:
+                #     current_loss = loss.item()
+                #     val_losses = self.validation()
+                #     self.model.train()
+                #     print("Epoch: {}/{}...".format(i_epoch, self.args.epochs),
+                #           "Counter: {}...".format(counter),
+                #           "Loss: {:.6f}...".format(current_loss),
+                #           "Val Loss: {:.6f}".format(np.mean(val_losses)))
+                #
+                #     if current_loss <= recent_loss:
+                #         now = datetime.datetime.today().strftime("%m%d_%H%M")
+                #         self.model_save(os.path.join(self.args.model_save_path, '{}_epoch{}.pth'.format(now, i_epoch)))
+                #         recent_loss = min(recent_loss, current_loss)
+            now = datetime.datetime.today().strftime("%m%d_%H%M")
+            self.model_save(os.path.join(self.args.model_save_path, '{}_epoch{}.pth'.format(now, i_epoch)))
 
     def validation(self):
         val_losses = []
-        dev_dataset = NIPDataset(args=self.args, data_path=self.args.data_path_prefix + "dev-dummy.txt")
-        dev_dataloader = DataLoader(dataset=dev_dataset, batch_size=self.args.batch_size, shuffle=False,
-                                         collate_fn=dev_dataset.custom_collate_fn)
-        for i_sample, sample_batch in enumerate(dev_dataloader):
+        for i_sample, sample_batch in enumerate(self.dev_dataloader):
             (text, length, mask, label) = sample_batch
             self.model.eval()
 
