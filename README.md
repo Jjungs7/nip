@@ -20,9 +20,8 @@ nip/data 폴더 만들고 그 안에 dataset 저장
     python3 encode.py
     ```
 4. dataloader 생성
-    - dataload.py 파일 import
-    - get_loader 함수 사용 (각각 train.txt, dev.txt, test.txt를 parameter로)
-    - 받은 data loader 사용
+    - dataset.py의 NIPDataset 클래스를 import하여 dataset 생성
+    - 생성한 dataset에 맞게 dataloader 생성
 
 2, 3번 과정에서 stanford nlp tokenizer를 다운 받고 서버를 연 상태에서 진행해야 함.  
 Tokenizer 설치 및 사용법은 다음 링크 참고.  
