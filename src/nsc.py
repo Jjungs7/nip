@@ -17,7 +17,7 @@ class MLPAttentionWithoutQuery(nn.Module):
             else:
                 nn.init.constant_(p)
 
-    def masked_softmax(logits, mask, dim=1, epsilon=1e-9):
+    def masked_softmax(self, logits, mask, dim=1, epsilon=1e-9):
         """ logits, mask has same size """
         masked_logits = logits.masked_fill(mask == 0, -1e9)
         max_logits = torch.max(masked_logits, dim=dim, keepdim=True)[0]

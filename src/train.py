@@ -1,5 +1,5 @@
 import numpy as np
-from NSC import NSC
+from nsc import NSC
 from dataset import NIPDataset
 from torch.utils.data import DataLoader
 import torch
@@ -14,8 +14,8 @@ class Instructor:
     def __init__(self, args):
         self.args = args
         self.model = NSC(self.args)
-        if args.resume or args.test:
-            self.model = self.model_load(args.resume)
+        if args.load_model or args.test:
+            self.model = self.model_load(args.load_model)
         if self.args.device is 'cuda':
             self.model = self.model.cuda()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.args.lr)
@@ -60,18 +60,19 @@ class Instructor:
                 self.optimizer.step()
 
                 if counter % self.args.log_interval == 0:
-                    current_loss = loss.item()
                     val_losses = self.validation()
+                    current_loss = np.mean(val_losses)
                     self.model.train()
                     print("Epoch: {}/{}...".format(i_epoch, self.args.epochs),
                           "Counter: {}...".format(counter),
-                          "Loss: {:.6f}...".format(current_loss),
-                          "Val Loss: {:.6f}".format(np.mean(val_losses)))
+                          "Loss: {:.6f}...".format(loss.item()),
+                          "Val Loss: {:.6f}".format(current_loss))
 
                     if current_loss <= recent_loss:
                         now = datetime.datetime.today().strftime("%m%d_%H%M")
                         self.model_save(os.path.join(self.args.model_save_path, '{}_epoch{}.pth'.format(now, i_epoch)))
                         recent_loss = min(recent_loss, current_loss)
+                        print("Model saved as {}_epoch{}.pth".format(now, i_epoch))
 
     def validation(self):
         val_losses = []
