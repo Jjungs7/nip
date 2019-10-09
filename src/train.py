@@ -8,7 +8,9 @@ import os
 import sys
 import datetime
 import math
-
+from tqdm import tqdm
+from tensorboardX import SummaryWriter
+summary = SummaryWriter()
 
 class Instructor:
     def __init__(self, args):
@@ -47,7 +49,9 @@ class Instructor:
 
         for i_epoch in range(1, self.args.epochs+1):
             counter = 1
-            for i_sample, sample_batch in enumerate(self.train_dataloader):
+            train_loss_list = []
+            valid_loss_list = []
+            for i_sample, sample_batch in enumerate(tqdm(self.train_dataloader)):
                 counter += 1
                 (text, length, mask, label) = sample_batch
                 if self.args.device is 'cuda':
@@ -56,12 +60,14 @@ class Instructor:
                 self.optimizer.zero_grad()
                 pred = self.model(text, length, mask)  # N, 3
                 loss = self.criterion(pred, label)
+                train_loss_list.append(loss.item())
                 loss.backward()
                 self.optimizer.step()
 
                 if counter % self.args.log_interval == 0:
                     val_losses = self.validation()
                     current_loss = np.mean(val_losses)
+                    valid_loss_list.append(current_loss)
                     self.model.train()
                     print("Epoch: {}/{}...".format(i_epoch, self.args.epochs),
                           "Counter: {}...".format(counter),
@@ -73,6 +79,11 @@ class Instructor:
                         self.model_save(os.path.join(self.args.model_save_path, '{}_epoch{}.pth'.format(now, i_epoch)))
                         recent_loss = min(recent_loss, current_loss)
                         print("Model saved as {}_epoch{}.pth".format(now, i_epoch))
+
+            summary.add_scalar('loss/train_loss', np.mean(train_loss_list), i_epoch)
+            summary.add_scalar('loss/valid_loss', np.mean(valid_loss_list), i_epoch)
+
+        summary.close()
 
     def validation(self):
         val_losses = []
