@@ -1,5 +1,6 @@
 import numpy as np, torch, torch.nn as nn
 from torch.autograd import Variable
+import gensim
 
 class MLPAttentionWithoutQuery(nn.Module):
     def __init__(self, Dv):
@@ -98,7 +99,7 @@ class NSC(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.args = args
-        self.WordEmb = nn.Embedding(self.args.ntokens, self.args.emsize) ## 여기를 Word2Vec으로
+        self.WordEmb = nn.Embedding(self.args.ntokens, self.args.emsize)
         self.BiLSTM = TextLSTM(
             input_size=self.args.emsize, hidden_size=self.args.nhid // 2,
             bidirectional=True, bias=True, num_layers=self.args.nlayers,

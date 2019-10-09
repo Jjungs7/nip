@@ -5,3 +5,6 @@ tqdm==4.35.0
 nltk==3.4.5
 matplotlib==3.1.1
 requests==2.22.0
+tensorflow
+tensorboardX
+gensim
