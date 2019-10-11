@@ -8,3 +8,4 @@ requests==2.22.0
 tensorflow
 tensorboardX
 gensim
+sklearn

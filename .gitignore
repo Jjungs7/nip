@@ -105,5 +105,9 @@ venv.bak/
 
 .idea
 data/
-model/
-src/runs
+nsc/model/
+nsc/src/runs/
+absc/abae/
+absc/absc/
+absc/word_vector/
+absc/src/runs/

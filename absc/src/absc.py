@@ -1,6 +1,7 @@
 import numpy as np, torch, torch.nn as nn
 from torch.autograd import Variable
-import gensim
+from torch.nn.functional import normalize, softmax
+from word2vec import word2vec
 
 class MLPAttentionWithoutQuery(nn.Module):
     def __init__(self, Dv):
@@ -95,11 +96,63 @@ class TextLSTM(nn.Module):
         return output, (hn, cn)
 
 
-class NSC(nn.Module):
+class abae_attention(nn.Module):
+    def __init__(self, d_embed):
+        super(abae_attention, self).__init__()
+        self.M = nn.Linear(d_embed, d_embed)
+        self.M.weight.data.uniform_(-0.1, 0.1) # -0.1과 0.1 사이의 값으로 초기화
+
+    def forward(self, e_i):
+        y_s = torch.mean(e_i, dim=-1)
+        d_i = torch.bmm(e_i.transpose(1, 2), self.M(y_s).unsqueeze(2)).tanh()
+        a_i = d_i / sum(torch.exp(d_i))
+        return a_i.squeeze(1)
+
+
+class ABAE(nn.Module):
+    def __init__(self, E, T):
+        super(ABAE, self).__init__()
+        n_vocabs, d_embed = E.shape
+        n_aspects, d_embed = T.shape
+        self.E = nn.Embedding(n_vocabs, d_embed)
+        self.T = nn.Embedding(n_aspects, d_embed)
+        self.attention = abae_attention(d_embed)
+        self.linear = nn.Linear(d_embed, n_aspects)
+        self.E.weight = nn.Parameter(torch.from_numpy(E), requires_grad=False)
+        self.T.weight = nn.Parameter(torch.from_numpy(T), requires_grad=True)
+
+    def forward(self, pos, negs):
+        p_t, z_s = self.predict(pos)
+        r_s = normalize(torch.mm(self.T.weight.t(), p_t.t()).t(), dim=-1)
+        e_n = self.E(negs).transpose(-2, -1)
+        z_n = normalize(torch.mean(e_n, dim=-1), dim=-1)
+        return r_s, z_s, z_n
+
+    def predict(self, x):
+        e_i = self.E(x).transpose(1, 2)
+        a_i = self.attention(e_i)
+        z_s = normalize(torch.bmm(e_i, a_i).squeeze(2), dim=-1)
+        p_t = softmax(self.linear(z_s), dim=1)
+        return p_t, z_s
+
+    def aspects(self):
+        E_n = normalize(self.E.weight, dim=1)
+        T_n = normalize(self.T.weight, dim=1)
+        projection = torch.mm(E_n, T_n.t()).t()
+        return projection
+
+
+class ABSC(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.args = args
-        self.WordEmb = nn.Embedding(self.args.ntokens, self.args.emsize)
+        self.w2v = word2vec(self.args.tokenized_path)
+        self.w2v.embed(self.args.w2v_path, self.args.emsize)
+        self.w2v.aspect(self.args.n_aspects)
+
+        self.ABAE = ABAE(self.w2v.E, self.w2v.T)
+        if self.args.device is 'cuda':
+            self.ABAE = self.ABAE.cuda()
         self.BiLSTM = TextLSTM(
             input_size=self.args.emsize, hidden_size=self.args.nhid // 2,
             bidirectional=True, bias=True, num_layers=self.args.nlayers,
@@ -113,6 +166,9 @@ class NSC(nn.Module):
         :param: length: N,
         """
         x = self.WordEmb(text)  # N, L, Dw
+
+
+
         x = self.BiLSTM(inputs=x, length=length)[0]  # N, L, Dh
 
         x = self.AttentionLayer(v=x, mask=mask)  # N, Dh
