@@ -153,6 +153,7 @@ class Instructor:
                 J = self.max_margin_loss(r_s, z_s, z_n)
                 U = self.orthogonal_regularization(self.model.T.weight)
                 loss = J + self.args.reg * self.args.batch_size * U
+                train_loss_list.append(loss.item())
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()

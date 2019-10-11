@@ -28,4 +28,4 @@ Tokenizer 설치 및 사용법은 다음 링크 참고.
 <https://stackoverflow.com/questions/47624742/how-to-use-stanford-word-tokenizer-in-nltk>  
 
 만일 사용이 어려울 경우 preprocessing 과정을 거친 데이터셋을 구글 드라이브에 올려놓았으니 참고.  
-data 폴더 채로 받아서 사용하면 됨.
+data 폴더 채로 받아서 사용하면 됨
