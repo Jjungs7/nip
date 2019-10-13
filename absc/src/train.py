@@ -213,3 +213,8 @@ class Instructor:
             index = index[-n:].detach().cpu().numpy()
             words = ', '.join([i2w[i] for i in index])
             print('Aspect %2d: %s' % (j, words))
+
+    def abae_test(self):
+        self.model.train()
+        self.sample_aspects(self.model.aspects(), self.w2v.i2w)
+

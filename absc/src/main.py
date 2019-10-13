@@ -7,10 +7,13 @@ def main(args):
     if not args.test:
         if args.category == 'abae':
             instr.abae_train()
-        else:
+        elif args.category == 'absc':
             instr.train()
     else:
-        instr.test()
+        if args.category == 'abae':
+            instr.abae_test()
+        elif args.category == 'absc':
+            instr.test()
 
 
 def get_args():
