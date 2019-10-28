@@ -14,43 +14,20 @@ class Classifier(nn.Module):
     def __init__(self, args):
         self.args = args
         super().__init__()
-        
-        if args.model_type == 'word_cust':
-            self.word_em = CustWordEmb(args)
-        elif args.model_type == 'word_basis_cust':
-            self.word_em = BasisCustWordEmb(args)
-        else:
-            self.word_em = BasicWordEmb(args)
-        
-        if args.model_type == 'encoder_cust':
-            raise Exception("Out-Of-Memory occurs ... ")
-        elif args.model_type == 'encoder_basis_cust':
-            self.encoder = BasisCustBiLSTM(args)
-        else:
-            self.encoder = BasicBiLSTM(args)
 
-        if args.model_type == 'attention_cust':
-            self.attention = CustAttention(args)
-        elif args.model_type == 'attention_basis_cust':
-            self.attention = BasisCustAttention(args)
-        else:
-            self.attention = BasicAttention(args)
+        self.word_em = BasicWordEmb(args)
+        self.encoder = BasicBiLSTM(args)
+        self.attention = BasicAttention(args)
 
-        if args.model_type == 'linear_cust':
-            self.W = CustLinear(args)
-        elif args.model_type == 'linear_basis_cust':
+        if args.model_type == 'linear_basis_cust':
             self.W = BasisCustLinear(args)
         elif args.model_type == 'stochastic_linear_basis_cust':
             self.W = StochasticBasisCustLinear(args)
         else:
             self.W = BasicLinear(args)
 
-        if args.model_type == 'bias_cust':
-            self.b = CustBias(args)
-        elif args.model_type == 'bias_basis_cust':
-            self.b = BasisCustBias(args)
-        else:
-            self.b = BasicBias(args)
+        self.b = BasicBias(args)
+
 
     def init_param(self, save_init_param=False):
         # Manual Random Seed
