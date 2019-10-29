@@ -10,7 +10,6 @@ colorlog.basicConfig(
     format="%(log_color)s[%(levelname)s:%(asctime)s]%(reset)s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S"
 )
-
 def masked_softmax(logits, mask, dim=1, epsilon=1e-9):
     """ logits, mask has same size """
     masked_logits = logits.masked_fill(mask == 0, -1e9)
@@ -19,24 +18,6 @@ def masked_softmax(logits, mask, dim=1, epsilon=1e-9):
     masked_exps = exps * mask.float()
     masked_sums = masked_exps.sum(dim, keepdim=True) + epsilon
     return masked_exps/masked_sums
-class LinearAttentionWithQuery(nn.Module):
-    def __init__(self, encoder_dim, query_dim, device=torch.device('cpu')):
-        super().__init__()
-        self.encoder_dim=encoder_dim
-        self.query_dim=query_dim
-        self.device = device
-    def forward(self, encoded_vecs, query, mask=None):
-        logits = torch.matmul(encoded_vecs, query.transpose(-2, -1)).squeeze(dim=2)
-        if (mask is not None):
-            # batch_size, max_length
-            attention = masked_softmax(logits=logits, mask=mask, dim=1)
-        else:
-            # batch_size, max_length
-            attention = F.softmax(logits, dim=1)
-        return (
-            torch.bmm(attention.unsqueeze(dim=1), encoded_vecs).squeeze(dim=1),
-            attention
-            )
 class LinearAttentionWithoutQuery(nn.Module):
     def __init__(self, encoder_dim, device=torch.device('cpu')):
         super().__init__()
@@ -239,21 +220,6 @@ class BasicLinear(BasicModule):
         self.W = nn.Linear(args.state_size, args.num_labels, bias=False)
     def forward(self, x, **kwargs):
         return self.W(x)
-class CustLinear(CustModule):
-    def __init__(self, args):
-        self.args = args
-        super().__init__()
-        self.state_size = args.state_size
-        self.num_labels= args.num_labels
-        for name, num_meta in args.meta_units:
-            setattr(self, "num_"+name, num_meta)
-            setattr(self, name, nn.Embedding(num_meta, args.state_size*args.num_labels))
-    def forward(self, x, **kwargs):
-        W = torch.cat([
-            getattr(self, name)(idx).view(x.shape[0], self.state_size, self.num_labels)
-            for name, idx in kwargs.items()], dim=1)
-        x = x.unsqueeze(dim=1).repeat(1,1,len(kwargs))
-        return torch.bmm(x, W).squeeze(dim=1)
 class BasisCustLinear(BasisCustModule):
     def __init__(self, args):
         self.args = args
@@ -293,7 +259,7 @@ class StochasticBasisCustLinear(StochasticBasisCustModule):
         logits_on_bases = torch.stack([
             W(x) for W in self.BasesList
         ], dim=1) # N, B, C
-        logits_sampled = torch.matmul(coef_sampled, logits_on_bases) # N, B, C
+        logits_sampled = torch.matmul(coef_sampled, logits_on_bases) # N, S, C
         return logits_sampled
     def coef_mean_and_std(self, **kwargs):
         coef_logit = self.C(
@@ -307,7 +273,7 @@ class StochasticBasisCustLinear(StochasticBasisCustModule):
         logits_on_bases = torch.stack([
             W(x) for W in self.BasesList
         ], dim=1) # N, B, C
-        logits_sampled = torch.matmul(coef_sampled, logits_on_bases) # N, B, C
+        logits_sampled = torch.matmul(coef_sampled, logits_on_bases) # N, S, C
         return logits_sampled, coef_sampled
 
 class BasicBias(BasicModule):
