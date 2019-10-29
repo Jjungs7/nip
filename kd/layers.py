@@ -233,7 +233,7 @@ class BasisCustLinear(BasisCustModule):
         colorlog.info("[init_param] for {}: bases for label embedding matrices: xavier_uniform_".format(self.__class__.__name__))
         for W in self.BasesList:
             nn.init.xavier_uniform_(W.weight)
-    def forward(self, x, **kwargs):
+    def forward(self, x, **kwargs): # Simple basis customization in linear FC step
         alpha = self.alpha(**kwargs)
         logits_on_bases = torch.stack([
             W(x) for W in self.BasesList
@@ -255,20 +255,20 @@ class StochasticBasisCustLinear(StochasticBasisCustModule):
         for W in self.BasesList:
             nn.init.xavier_uniform_(W.weight)
     def forward(self, x, **kwargs):
-        coef_sampled = self.alpha(**kwargs)
+        coef_sampled = self.alpha(**kwargs) # N, S, B
         logits_on_bases = torch.stack([
             W(x) for W in self.BasesList
         ], dim=1) # N, B, C
         logits_sampled = torch.matmul(coef_sampled, logits_on_bases) # N, S, C
         return logits_sampled
-    def coef_mean_and_std(self, **kwargs):
+    def coef_mean_and_std(self, **kwargs): # currently not using?? get mean and std of coefficients
         coef_logit = self.C(
             torch.cat([getattr(self, name)(idx) for name, idx in kwargs.items()], dim=1)
             ) # N, B*2 (mu and logvar)
         mu, logvar = coef_logit[:, :self.args.num_bases], coef_logit[:, self.args.num_bases:]
         std = logvar.mul(0.5).exp_() # N, B
         return mu, std
-    def mean_and_variance(self, x, **kwargs):
+    def mean_and_variance(self, x, **kwargs): # currently using in model.py. Returns samples logits and samples alphas
         coef_sampled = self.alpha(**kwargs)
         logits_on_bases = torch.stack([
             W(x) for W in self.BasesList
