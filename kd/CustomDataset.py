@@ -52,7 +52,7 @@ class TrainDataset(CustomDataset):
 	
 	def custom_collate_fn(self, sample_batch):
 		user, product, rating, length, text\
-		, cust_teacher_logit\
+		, cust_teacher_logit, non_cust_teacher_logit\
 		 = list(zip(*sample_batch))
 		N = len(text)
 		
@@ -66,9 +66,10 @@ class TrainDataset(CustomDataset):
 		mask = torch.from_numpy(mask.astype(np.float32)).to(self.args.device) # N, L
 
 		cust_teacher_logit = torch.Tensor(cust_teacher_logit).to(self.args.device)
+		non_cust_teacher_logit = torch.Tensor(non_cust_teacher_logit).to(self.args.device)
 
 		return (text, length, mask, user, product, rating,
-			cust_teacher_logit,
+			cust_teacher_logit, non_cust_teacher_logit
 			)
 	def read_data(self, data_path):
 		with open(data_path, 'r') as f:
@@ -83,8 +84,10 @@ class TrainDataset(CustomDataset):
 		colorlog.info("[Load knowledge distillation targets]")
 		cust_teacher_logit = np.load(self.args.cust_teacher_logit_path)
 		colorlog.info("cust_teacher_logit_path: {}, shape {}".format(self.args.cust_teacher_logit_path, cust_teacher_logit.shape))
+		non_cust_teacher_logit = np.load(self.args.non_cust_teacher_logit_path)
+		colorlog.info("non_cust_teacher_logit_path: {}, shape {}".format(self.args.non_cust_teacher_logit_path, non_cust_teacher_logit.shape))
 
-		return list(zip(user, product, rating, length, review, cust_teacher_logit))
+		return list(zip(user, product, rating, length, review, cust_teacher_logit, non_cust_teacher_logit))
 class EvalDataset(CustomDataset):
 	def __init__(self, args, name, *nargs, **kwargs):
 		super().__init__(args, name, *nargs, **kwargs)

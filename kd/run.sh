@@ -10,6 +10,7 @@ coef_act_fn=softmax
 model_type=stochastic_linear_basis_cust
 version_log=$model_type
 cust_teacher_logit_path=../Teachers/linear_basis_cust.coef_act_fn_softmax.num_bases_5.attribute_dim_64.key_query_size_64/Logits/logits_train.npy
+non_cust_teacher_logit_path=../Teachers/non_cust.det/Logits/logits_train.npy
 reg_kd=0.005
 num_bases=5
 attribute_dim=64

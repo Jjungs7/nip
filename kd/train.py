@@ -179,7 +179,8 @@ class Instructor:
 			
 local_data_path = "/ssd2/DataCenter/yelp2013/processed_data/"
 parser = argparse.ArgumentParser()
-parser.add_argument("--cust_teacher_logit_path", required=True, type=str, help="file path for attained output logits using teacher")
+parser.add_argument("--cust_teacher_logit_path", required=True, type=str, help="file path for attained output logits using cust teacher")
+parser.add_argument("--non_cust_teacher_logit_path", required=True, type=str, help="file path for attained output logits using non-cust teacher")
 parser.add_argument("--random_seed", required=True, help="The random_seed must be the same with seed used for teacher (for the same initialization with the teacher)", type=int)
 parser.add_argument("--reg_kd", default=0.01, type=float, help="contribution of knowledge distillation objective on output logits from teacher")
 
