@@ -102,7 +102,8 @@ class Instructor:
 					text, length, mask,
 					user, product,
 					label,
-					cust_teacher_logit
+					cust_teacher_logit,
+					non_cust_teacher_logit
 				) = sample_batch
 				output_prob, output_logits_sampled = self.model(text, length, mask, **{'user':user, 'product':product}) # N, 5
 				loss_gt = self.model.get_loss(output_prob, label) # Loss from ground-truth label
@@ -177,7 +178,7 @@ class Instructor:
 
 		return acc, rmse
 			
-local_data_path = "/ssd2/DataCenter/yelp2013/processed_data/"
+local_data_path = "/home/poolc2/Workspace/nip/kd/data"
 parser = argparse.ArgumentParser()
 parser.add_argument("--cust_teacher_logit_path", required=True, type=str, help="file path for attained output logits using cust teacher")
 parser.add_argument("--non_cust_teacher_logit_path", required=True, type=str, help="file path for attained output logits using non-cust teacher")
