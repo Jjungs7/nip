@@ -1,4 +1,4 @@
-import pickle, argparse, os, random, subprocess, math
+import pickle, argparse, os, random, subprocess, math, sys
 from tqdm import tqdm 
 import colorlog, logging
 import torch, torch.nn as nn, torch.nn.functional as F
@@ -67,6 +67,12 @@ class Instructor:
 		
 		colorlog.critical("[reg_kd] {}".format(self.args.reg_kd))
 
+		if self.args.std_update:
+			self.std_max = 0.0
+			self.std_min = sys.float_info.max
+		else:
+			self.std_max = self.args.std_max
+			self.std_min = self.args.std_min
 
 		# Model & Optimizer
 		if 'stochastic' in self.args.model_type:
@@ -85,7 +91,15 @@ class Instructor:
 
 		self.test_dataset = EvalDataset(args=self.args, name="test", data_path=self.args.data_path_prefix+"test.txt")
 		self.test_dataloader = DataLoader(dataset=self.test_dataset, batch_size=self.args.eval_batch_size, shuffle=False, collate_fn=self.test_dataset.custom_collate_fn)
-		
+
+	def get_alpha(self, output_logits_std):
+		m = (-1.0) / (self.std_max - self.std_min)
+		k = self.std_max / (self.std_max - self.std_min)
+
+		alpha = (output_logits_std * m) + k # N
+
+		return alpha
+
 	def train(self):
 		# Engine
 		self.optimizer = torch.optim.Adadelta(self.model.parameters())
@@ -107,9 +121,20 @@ class Instructor:
 				) = sample_batch
 				output_prob, output_logits_sampled = self.model(text, length, mask, **{'user':user, 'product':product}) # N, 5
 				loss_gt = self.model.get_loss(output_prob, label) # Loss from ground-truth label
+				output_logits_std = output_logits_sampled.std(dim=1) # N, C
+				output_logits_std = output_logits_std.sum(dim=-1) # N
+
+				if self.args.std_update:
+					self.std_max = max(self.std_max, output_logits_std.max().item())
+					self.std_min = min(self.std_min, output_logits_std.min().item())
+
+				alpha = self.get_alpha(output_logits_std) # N
+				teacher_logit = (cust_teacher_logit * alpha).unsqueeze(1) \
+								+ (non_cust_teacher_logit * (1.0 - alpha)).unsqueeze(1)
 				loss_kd = (
-					(output_logits_sampled-cust_teacher_logit.unsqueeze(1))**2
+					(output_logits_sampled-teacher_logit)**2
 					).sum(-1).mean(0).mean(0)
+
 				loss = loss_gt+self.args.reg_kd * loss_kd
 				loss.backward()
 				nn.utils.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
@@ -231,6 +256,10 @@ parser.add_argument("--attribute_dropout", default=0.2, type=float)
 parser.add_argument("--num_user", default=1631, type=int)
 parser.add_argument("--num_product", default=1633, type=int)
 
+parser.add_argument("--std_update", required=True, type=bool)
+parser.add_argument("--std_max", default=0.260, type=float)
+parser.add_argument("--std_min", default=0.200, type=float)
+
 args = parser.parse_args()
 args.meta_units = [("user", args.num_user), ("product", args.num_product)]
 if args.subdir:
@@ -325,7 +354,10 @@ print("""
 [Accuracy]
 {}
 [RMSE]
-{}""".format(
+{}
+[standard deviation]
+Max: {} / Min: {}""".format(
 	args.version_log, args.subdir,
-	acc_result, rmse_result
+	acc_result, rmse_result,
+	ins.std_max, ins.std_min
 ))
