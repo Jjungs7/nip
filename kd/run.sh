@@ -43,7 +43,9 @@ python3 -W ignore train.py \
 --max_epochs 8 \
 --eval_step 1000 \
 --max_grad_norm 3.0 \
---std_update True \
+--uncertainty_method "ent" \
+--std_update false \
+--ent_update True \
 \
 --data_path_prefix $basedir \
 --vocab_path $basedir"42939.vocab" \

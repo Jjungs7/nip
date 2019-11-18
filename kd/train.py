@@ -67,12 +67,19 @@ class Instructor:
 		
 		colorlog.critical("[reg_kd] {}".format(self.args.reg_kd))
 
-		if self.args.std_update:
+		if self.args.uncertainty_method is "std" and self.args.std_update:
 			self.std_max = 0.0
 			self.std_min = sys.float_info.max
 		else:
 			self.std_max = self.args.std_max
 			self.std_min = self.args.std_min
+
+		if self.args.uncertainty_method is "ent" and self.args.ent_update:
+			self.ent_max = 0.0
+			self.ent_min = sys.float_info.max
+		else:
+			self.ent_max = self.args.ent_max
+			self.ent_min = self.args.ent_min
 
 		# Model & Optimizer
 		if 'stochastic' in self.args.model_type:
@@ -92,11 +99,11 @@ class Instructor:
 		self.test_dataset = EvalDataset(args=self.args, name="test", data_path=self.args.data_path_prefix+"test.txt")
 		self.test_dataloader = DataLoader(dataset=self.test_dataset, batch_size=self.args.eval_batch_size, shuffle=False, collate_fn=self.test_dataset.custom_collate_fn)
 
-	def get_alpha(self, output_logits_std):
+	def get_alpha(self, uncertainty): # function to get alpha value when using linear contribution function
 		m = (-1.0) / (self.std_max - self.std_min)
 		k = self.std_max / (self.std_max - self.std_min)
 
-		alpha = (output_logits_std * m) + k # N
+		alpha = (uncertainty * m) + k # N
 
 		return alpha
 
@@ -121,14 +128,29 @@ class Instructor:
 				) = sample_batch
 				output_prob, output_logits_sampled = self.model(text, length, mask, **{'user':user, 'product':product}) # N, 5
 				loss_gt = self.model.get_loss(output_prob, label) # Loss from ground-truth label
+
+				# 1. standard variation for uncertainty
 				output_logits_std = output_logits_sampled.std(dim=1) # N, C
 				output_logits_std = output_logits_std.sum(dim=-1) # N
 
-				if self.args.std_update:
+				# 2. entropy for uncertainty
+				probability_sampled = F.softmax(output_logits_sampled, -1) # N, B, C
+				p = probability_sampled.mean(1) # N, C
+				entropy = (-p*torch.log(p)).sum(-1) # N # another uncertainty measurement instead of output_logits_std
+
+				if self.args.uncertainty_method is "std" and self.args.std_update:
 					self.std_max = max(self.std_max, output_logits_std.max().item())
 					self.std_min = min(self.std_min, output_logits_std.min().item())
 
-				alpha = self.get_alpha(output_logits_std) # N
+				if self.args.uncertainty_method is "ent" and self.args.ent_update:
+					self.ent_max = max(self.ent_max, entropy.max().item())
+					self.ent_min = min(self.ent_min, entropy.min().item())
+
+				if self.args.uncertainty_method is "std":
+					alpha = self.get_alpha(output_logits_std) # N
+				elif self.args.uncertainty_method is "ent":
+					alpha = self.get_alpha(entropy)
+
 				teacher_logit = (cust_teacher_logit * alpha).unsqueeze(1) \
 								+ (non_cust_teacher_logit * (1.0 - alpha)).unsqueeze(1)
 				loss_kd = (
@@ -256,9 +278,16 @@ parser.add_argument("--attribute_dropout", default=0.2, type=float)
 parser.add_argument("--num_user", default=1631, type=int)
 parser.add_argument("--num_product", default=1633, type=int)
 
+# 1. std(standard variation), 2. ent(entropy)
+parser.add_argument("--uncertainty_method", required=True, type=str)
+
 parser.add_argument("--std_update", required=True, type=bool)
 parser.add_argument("--std_max", default=0.260, type=float)
 parser.add_argument("--std_min", default=0.200, type=float)
+
+parser.add_argument("--ent_update", required=True, type=bool)
+parser.add_argument("--ent_max", default=0.260, type=float)
+parser.add_argument("--ent_min", default=0.200, type=float)
 
 args = parser.parse_args()
 args.meta_units = [("user", args.num_user), ("product", args.num_product)]
@@ -356,8 +385,11 @@ print("""
 [RMSE]
 {}
 [standard deviation]
+Max: {} / Min: {}
+[entropy]
 Max: {} / Min: {}""".format(
 	args.version_log, args.subdir,
 	acc_result, rmse_result,
-	ins.std_max, ins.std_min
+	ins.std_max, ins.std_min,
+	ins.ent_max, ins.ent_min
 ))
