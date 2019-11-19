@@ -67,6 +67,8 @@ class Instructor:
 		
 		colorlog.critical("[reg_kd] {}".format(self.args.reg_kd))
 
+		self.alpha = 0.0
+
 		if self.args.uncertainty_method is "std" and self.args.std_update:
 			self.std_max = 0.0
 			self.std_min = sys.float_info.max
@@ -100,10 +102,19 @@ class Instructor:
 		self.test_dataloader = DataLoader(dataset=self.test_dataset, batch_size=self.args.eval_batch_size, shuffle=False, collate_fn=self.test_dataset.custom_collate_fn)
 
 	def get_alpha(self, uncertainty): # function to get alpha value when using linear contribution function
-		m = (-1.0) / (self.std_max - self.std_min)
-		k = self.std_max / (self.std_max - self.std_min)
+		max_val, min_val = 0.0
+		if self.args.uncertainty_method is "std":
+			max_val = self.std_max
+			min_val = self.std_min
+		elif self.args.uncertainty_method is "ent":
+			max_val = self.ent_max
+			min_val = self.ent_min
+
+		m = (-1.0) / (max_val - min_val)
+		k = max_val / (max_val - min_val)
 
 		alpha = (uncertainty * m) + k # N
+		alpha = torch.clamp(alpha, max=1.0, min=0.0)
 
 		return alpha
 
@@ -147,12 +158,12 @@ class Instructor:
 					self.ent_min = min(self.ent_min, entropy.min().item())
 
 				if self.args.uncertainty_method is "std":
-					alpha = self.get_alpha(output_logits_std) # N
+					self.alpha = self.get_alpha(output_logits_std) # N
 				elif self.args.uncertainty_method is "ent":
-					alpha = self.get_alpha(entropy)
+					self.alpha = self.get_alpha(entropy)
 
-				teacher_logit = (cust_teacher_logit * alpha).unsqueeze(1) \
-								+ (non_cust_teacher_logit * (1.0 - alpha)).unsqueeze(1)
+				teacher_logit = (cust_teacher_logit * self.alpha).unsqueeze(1) \
+								+ (non_cust_teacher_logit * (1.0 - self.alpha)).unsqueeze(1)
 				loss_kd = (
 					(output_logits_sampled-teacher_logit)**2
 					).sum(-1).mean(0).mean(0)
@@ -282,8 +293,8 @@ parser.add_argument("--num_product", default=1633, type=int)
 parser.add_argument("--uncertainty_method", required=True, type=str)
 
 parser.add_argument("--std_update", required=True, type=bool)
-parser.add_argument("--std_max", default=0.260, type=float)
-parser.add_argument("--std_min", default=0.200, type=float)
+parser.add_argument("--std_max", default=5.1, type=float)
+parser.add_argument("--std_min", default=0.26, type=float)
 
 parser.add_argument("--ent_update", required=True, type=bool)
 parser.add_argument("--ent_max", default=0.260, type=float)

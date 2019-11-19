@@ -45,7 +45,7 @@ python3 -W ignore train.py \
 --max_grad_norm 3.0 \
 --uncertainty_method "ent" \
 --std_update false \
---ent_update True \
+--ent_update false \
 \
 --data_path_prefix $basedir \
 --vocab_path $basedir"42939.vocab" \
