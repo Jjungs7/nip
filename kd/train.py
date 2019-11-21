@@ -69,19 +69,21 @@ class Instructor:
 
 		self.alpha = 0.0
 
-		if self.args.uncertainty_method is "std" and self.args.std_update:
+		self.std_max = self.args.std_max
+		self.std_min = self.args.std_min
+
+		self.ent_max = self.args.ent_max
+		self.ent_min = self.args.ent_min
+
+		if self.args.uncertainty_method == "std" and self.args.std_update == "true":
+			print(self.args.uncertainty_method)
+			print(self.args.std_update)
 			self.std_max = 0.0
 			self.std_min = sys.float_info.max
-		else:
-			self.std_max = self.args.std_max
-			self.std_min = self.args.std_min
 
-		if self.args.uncertainty_method is "ent" and self.args.ent_update:
+		if self.args.uncertainty_method == "ent" and self.args.ent_update == "true":
 			self.ent_max = 0.0
 			self.ent_min = sys.float_info.max
-		else:
-			self.ent_max = self.args.ent_max
-			self.ent_min = self.args.ent_min
 
 		# Model & Optimizer
 		if 'stochastic' in self.args.model_type:
@@ -102,11 +104,11 @@ class Instructor:
 		self.test_dataloader = DataLoader(dataset=self.test_dataset, batch_size=self.args.eval_batch_size, shuffle=False, collate_fn=self.test_dataset.custom_collate_fn)
 
 	def get_alpha(self, uncertainty): # function to get alpha value when using linear contribution function
-		max_val, min_val = 0.0
-		if self.args.uncertainty_method is "std":
+		max_val, min_val = 0.0, 0.0
+		if self.args.uncertainty_method == "std":
 			max_val = self.std_max
 			min_val = self.std_min
-		elif self.args.uncertainty_method is "ent":
+		elif self.args.uncertainty_method == "ent":
 			max_val = self.ent_max
 			min_val = self.ent_min
 
@@ -149,21 +151,21 @@ class Instructor:
 				p = probability_sampled.mean(1) # N, C
 				entropy = (-p*torch.log(p)).sum(-1) # N # another uncertainty measurement instead of output_logits_std
 
-				if self.args.uncertainty_method is "std" and self.args.std_update:
+				if self.args.uncertainty_method == "std" and self.args.std_update == "true":
 					self.std_max = max(self.std_max, output_logits_std.max().item())
 					self.std_min = min(self.std_min, output_logits_std.min().item())
 
-				if self.args.uncertainty_method is "ent" and self.args.ent_update:
+				if self.args.uncertainty_method == "ent" and self.args.ent_update == "true":
 					self.ent_max = max(self.ent_max, entropy.max().item())
 					self.ent_min = min(self.ent_min, entropy.min().item())
 
-				if self.args.uncertainty_method is "std":
+				if self.args.uncertainty_method == "std":
 					self.alpha = self.get_alpha(output_logits_std) # N
-				elif self.args.uncertainty_method is "ent":
+				elif self.args.uncertainty_method == "ent":
 					self.alpha = self.get_alpha(entropy)
 
-				teacher_logit = (cust_teacher_logit * self.alpha).unsqueeze(1) \
-								+ (non_cust_teacher_logit * (1.0 - self.alpha)).unsqueeze(1)
+				teacher_logit = (cust_teacher_logit * self.alpha.unsqueeze(dim=-1).repeat(1, self.args.num_labels)).unsqueeze(1) \
+								+ (non_cust_teacher_logit * (1.0 - self.alpha).unsqueeze(dim=-1).repeat(1, self.args.num_labels)).unsqueeze(1)
 				loss_kd = (
 					(output_logits_sampled-teacher_logit)**2
 					).sum(-1).mean(0).mean(0)
@@ -292,13 +294,13 @@ parser.add_argument("--num_product", default=1633, type=int)
 # 1. std(standard variation), 2. ent(entropy)
 parser.add_argument("--uncertainty_method", required=True, type=str)
 
-parser.add_argument("--std_update", required=True, type=bool)
+parser.add_argument("--std_update", required=True, type=str)
 parser.add_argument("--std_max", default=5.1, type=float)
-parser.add_argument("--std_min", default=0.26, type=float)
+parser.add_argument("--std_min", default=0.026, type=float)
 
-parser.add_argument("--ent_update", required=True, type=bool)
-parser.add_argument("--ent_max", default=0.260, type=float)
-parser.add_argument("--ent_min", default=0.200, type=float)
+parser.add_argument("--ent_update", required=True, type=str)
+parser.add_argument("--ent_max", default=1.61, type=float)
+parser.add_argument("--ent_min", default=0.001, type=float)
 
 args = parser.parse_args()
 args.meta_units = [("user", args.num_user), ("product", args.num_product)]
