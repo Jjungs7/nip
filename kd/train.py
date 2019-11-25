@@ -3,6 +3,8 @@ from tqdm import tqdm
 import colorlog, logging
 import torch, torch.nn as nn, torch.nn.functional as F
 import numpy as np
+import matplotlib.pyplot as plt
+
 logging.disable(logging.DEBUG)
 colorlog.basicConfig(
 	filename=None,
@@ -12,6 +14,9 @@ colorlog.basicConfig(
 )
 from CustomDataset import TrainDataset, EvalDataset
 from torch.utils.data import Dataset, DataLoader
+
+from tensorboardX import SummaryWriter
+summary = SummaryWriter()
 
 # Model Loading
 from model import *
@@ -75,9 +80,10 @@ class Instructor:
 		self.ent_max = self.args.ent_max
 		self.ent_min = self.args.ent_min
 
+		self.std_list = []
+		self.ent_list = []
+
 		if self.args.uncertainty_method == "std" and self.args.std_update == "true":
-			print(self.args.uncertainty_method)
-			print(self.args.std_update)
 			self.std_max = 0.0
 			self.std_min = sys.float_info.max
 
@@ -151,6 +157,10 @@ class Instructor:
 				p = probability_sampled.mean(1) # N, C
 				entropy = (-p*torch.log(p)).sum(-1) # N # another uncertainty measurement instead of output_logits_std
 
+				if i_epoch == 0:
+					self.std_list += output_logits_std.tolist()
+					self.ent_list += entropy.tolist()
+
 				if self.args.uncertainty_method == "std" and self.args.std_update == "true":
 					self.std_max = max(self.std_max, output_logits_std.max().item())
 					self.std_min = min(self.std_min, output_logits_std.min().item())
@@ -164,8 +174,12 @@ class Instructor:
 				elif self.args.uncertainty_method == "ent":
 					self.alpha = self.get_alpha(entropy)
 
-				teacher_logit = (cust_teacher_logit * self.alpha.unsqueeze(dim=-1).repeat(1, self.args.num_labels)).unsqueeze(1) \
+				if self.args.uncertainty_method == "std" or self.args.uncertainty_method == "ent":
+					teacher_logit = (cust_teacher_logit * self.alpha.unsqueeze(dim=-1).repeat(1, self.args.num_labels)).unsqueeze(1) \
 								+ (non_cust_teacher_logit * (1.0 - self.alpha).unsqueeze(dim=-1).repeat(1, self.args.num_labels)).unsqueeze(1)
+				elif self.args.uncertainty_method == "":
+					teacher_logit = cust_teacher_logit.unsqueeze(1)
+
 				loss_kd = (
 					(output_logits_sampled-teacher_logit)**2
 					).sum(-1).mean(0).mean(0)
@@ -180,11 +194,70 @@ class Instructor:
 				self.engine.iteration_complete()
 			self.engine.epoch_complete()
 		self.engine.complete()
+
+		#self.std_list = sorted(self.std_list)
+		#self.ent_list = sorted(self.ent_list)
+		print(max(self.std_list))
+		print(min(self.std_list))
+		print(max(self.ent_list))
+		print(min(self.ent_list))
+
+		plt.subplot(2, 1, 1)
+		plt.plot(self.std_list, 'r.')
+		plt.title("top: std, bottom: ent")
+
+		plt.subplot(2, 1, 2)
+		plt.plot(self.ent_list, 'r.')
+		plt.xlabel("idx")
+
+		plt.show()
+
+		std_data_std = np.std(self.std_list)
+		std_data_mean = np.mean(self.std_list)
+		std_cut_off = std_data_std * 3
+
+		std_lower = std_data_mean - std_cut_off
+		std_upper = std_data_mean + std_cut_off
+		final_std_list = []
+		for value in self.std_list:
+			if std_lower <= value <= std_upper:
+				final_std_list.append(value)
+
+		ent_data_std = np.std(self.ent_list)
+		ent_data_mean = np.mean(self.ent_list)
+		ent_cut_off = ent_data_std * 3
+
+		ent_lower = ent_data_mean - ent_cut_off
+		ent_upper = ent_data_mean + ent_cut_off
+		final_ent_list = []
+		for value in self.ent_list:
+			if ent_lower <= value <= ent_upper:
+				final_ent_list.append(value)
+
+		plt.subplot(2, 1, 1)
+		plt.plot(final_std_list, 'r.')
+		plt.title("top: std, bottom: ent")
+
+		plt.subplot(2, 1, 2)
+		plt.plot(final_ent_list, 'r.')
+		plt.xlabel("idx")
+
+		plt.show()
+
 	def test(self):
 		colorlog.critical("[Evaluation on Test Set]")
 		best_param_path = os.path.join(self.args.param_dir, self.args.model_type)
 		self.model.load_state_dict(torch.load(best_param_path, map_location=self.args.device)['state_dict'])
 		colorlog.critical("[Best Parameter Loading] {}".format(best_param_path))
+
+		if self.args.uncertainty_method == "std":
+			fname = "std"
+		elif self.args.uncertainty_method == "ent":
+			fname = "ent"
+		elif self.args.uncertainty_method == "":
+			fname = "cust"
+		# sigfile = open("result/sig_result/"+fname+".txt","w")
+		sigfile = open(fname + ".txt","w")
 
 		dataloader = self.test_dataloader
 		N = len(dataloader.dataset)
@@ -201,6 +274,14 @@ class Instructor:
 				pred = torch.argmax(pred, dim=-1)
 				pred_np[i_sample*B:(i_sample+1)*B] = pred.cpu().data.numpy()
 				target_np[i_sample*B:(i_sample+1)*B] = label.cpu().data.numpy()
+
+				compare = torch.eq(pred, label)
+				c_size = compare.size()[0]
+				for idx in range(c_size):
+					if compare[idx].item():
+						sigfile.write("1\n")
+					else:
+						sigfile.write("0\n")
 			self.model.train()
 		acc = (pred_np==target_np).mean()
 		rmse = ((pred_np-target_np)**2).mean()**0.5
@@ -299,7 +380,7 @@ parser.add_argument("--std_max", default=5.1, type=float)
 parser.add_argument("--std_min", default=0.026, type=float)
 
 parser.add_argument("--ent_update", required=True, type=str)
-parser.add_argument("--ent_max", default=1.61, type=float)
+parser.add_argument("--ent_max", default=1.6, type=float)
 parser.add_argument("--ent_min", default=0.001, type=float)
 
 args = parser.parse_args()
