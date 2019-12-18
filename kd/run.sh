@@ -40,10 +40,10 @@ python3 -W ignore train.py \
 --batch_size 32 \
 --eval_batch_size 32 \
 \
---max_epochs 8 \
+--max_epochs 1 \
 --eval_step 1000 \
 --max_grad_norm 3.0 \
---uncertainty_method "" \
+--uncertainty_method "std" \
 --std_update "false" \
 --ent_update "false" \
 \
